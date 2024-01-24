@@ -1,195 +1,298 @@
-use std::{char, os, str::Chars};
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum TokenKind {
-    BadToken,
+#[derive(Debug, PartialEq)]
+enum TokenKind {
+    Ident(String),
+    Integer(String),
+    Illegal,
     EOF,
-    Whitespace,
-    Number(i64),
+    Equal,
+    Assign,
+    Bang,
+    NotEqual,
+    GreaterThan,
+    GreaterOrEqual,
+    LessThan,
+    LessOrEqual,
     Plus,
-    Minus,
+    Dash,
     Asterisk,
     Slash,
-    LeftParen,
-    RightParen,
+    Comma,
+    Semicolon,
+    LParen,
+    RParen,
+    LSquirly,
+    RSquirly,
+    LBracket,
+    RBracket,
+    Function,
+    Let,
+    If,
+    Else,
+    True,
+    False,
+    Return,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct TextSpan {
+struct TokenSpan {
     start: usize,
     end: usize,
-    literal: String,
+    lexeme: String,
 }
 
-impl TextSpan {
-    pub fn new(start: usize, end: usize, literal: String) -> Self {
-        Self {
-            start,
-            end,
-            literal,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.end - self.start
+impl TokenSpan {
+    fn new(start: usize, end: usize, lexeme: String) -> Self {
+        Self { start, end, lexeme }
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
 pub struct Token {
     kind: TokenKind,
-    span: TextSpan,
+    span: TokenSpan,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: TextSpan) -> Self {
+    fn new(kind: TokenKind, span: TokenSpan) -> Self {
         Self { kind, span }
     }
 }
 
-pub struct Lexer<'a> {
-    input: &'a str,
+pub struct Lexer {
     cur_pos: usize,
+    read_pos: usize,
+    ch: u8,
+    input: Vec<u8>,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
-        Self { input, cur_pos: 0 }
+impl Lexer {
+    pub fn new(input: String) -> Self {
+        let mut l = Self {
+            cur_pos: 0,
+            read_pos: 0,
+            ch: 0,
+            input: input.into_bytes(),
+        };
+        l.consume_char();
+        l
     }
 
-    fn cur_char(&self) -> char {
-        self.input.chars().nth(self.cur_pos).unwrap()
-    }
-
-    fn peek(&self) -> Option<char> {
-        if self.cur_pos >= self.input.len() {
-            return None;
-        }
-        let c = self.cur_char();
-        Some(c)
-    }
-
-    fn next_pos(&mut self) {
-        self.cur_pos += 1;
-    }
-
-    fn consume_number(&mut self) -> i64 {
-        let mut num = 0i64;
-        while let Some(c) = self.peek() {
-            let c = c.to_digit(10);
-            match c {
-                Some(d) => {
-                    num = num * 10 + d as i64;
-                    self.next_pos();
-                }
-                None => {
-                    break;
-                }
-            }
-        }
-        num
-    }
-
-    fn consume_whitespace(&mut self) {
-        while let Some(c) = self.peek() {
-            if c.is_ascii_whitespace() {
-                self.next_pos();
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn consume_punctuator(&mut self) -> TokenKind {
-        let c = self.cur_char();
-        self.next_pos();
-        match c {
-            '+' => TokenKind::Plus,
-            // add more
-            _ => TokenKind::BadToken,
-        }
-    }
-
-    fn consume(&mut self) -> Option<Token> {
-        let start = self.cur_pos;
-        let mut kind = TokenKind::BadToken;
-        let c = self.cur_char();
-        if c.is_digit(10) {
-            kind = TokenKind::Number(self.consume_number());
-        } else if c.is_ascii_whitespace() {
-            self.consume_whitespace();
-            kind = TokenKind::Whitespace;
-        } else if c.is_ascii_punctuation() {
-            kind = self.consume_punctuator();
+    fn consume_char(&mut self) {
+        if self.read_pos >= self.input.len() {
+            self.ch = 0;
         } else {
-            self.next_pos();
+            self.ch = self.input[self.read_pos];
         }
-
-        let end = self.cur_pos;
-        let literal = self.input[start..end].to_string();
-        let span = TextSpan::new(start, end, literal);
-
-        Some(Token::new(kind, span))
+        self.cur_pos = self.read_pos;
+        self.read_pos += 1;
     }
 
-    fn next(&mut self) -> Option<Token> {
-        if self.cur_pos > self.input.len() {
-            return None;
+    fn peek(&self) -> u8 {
+        if self.read_pos >= self.input.len() {
+            return 0;
+        } else {
+            return self.input[self.read_pos];
         }
-        if self.cur_pos == self.input.len() {
-            let t = Token::new(
-                TokenKind::EOF,
-                TextSpan::new(self.cur_pos, self.cur_pos, '\0'.to_string()),
-            );
-            self.next_pos();
-            return Some(t);
-        }
+    }
 
-        self.consume()
+    fn skip_whitespace(&mut self) {
+        while self.ch.is_ascii_whitespace() {
+            self.consume_char();
+        }
+    }
+
+    fn read_ident(&mut self) -> String {
+        let pos = self.cur_pos;
+        while self.ch.is_ascii_alphabetic() || self.ch == b'_' {
+            self.consume_char();
+        }
+        String::from_utf8_lossy(&self.input[pos..self.cur_pos]).to_string()
+    }
+
+    fn read_int(&mut self) -> String {
+        let pos = self.cur_pos;
+        while self.ch.is_ascii_digit() {
+            self.consume_char();
+        }
+        String::from_utf8_lossy(&self.input[pos..self.cur_pos]).to_string()
+    }
+}
+
+impl Iterator for Lexer {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.skip_whitespace();
+        let start_pos = self.cur_pos;
+        let mut consumed = false;
+        let kind = match self.ch {
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
+                let ident = self.read_ident();
+                consumed = true;
+                match ident.as_str() {
+                    "fn" => TokenKind::Function,
+                    "let" => TokenKind::Let,
+                    "if" => TokenKind::If,
+                    "else" => TokenKind::Else,
+                    "true" => TokenKind::True,
+                    "false" => TokenKind::False,
+                    "return" => TokenKind::Return,
+                    _ => TokenKind::Ident(ident),
+                }
+            }
+            b'0'..=b'9' => {
+                consumed = true;
+                TokenKind::Integer(self.read_int())
+            }
+            b'=' => match self.peek() {
+                b'=' => {
+                    self.consume_char();
+                    TokenKind::Equal
+                }
+                _ => TokenKind::Assign,
+            },
+            b'!' => match self.peek() {
+                b'=' => {
+                    self.consume_char();
+                    TokenKind::NotEqual
+                }
+                _ => TokenKind::Bang,
+            },
+            b'>' => match self.peek() {
+                b'=' => {
+                    self.consume_char();
+                    TokenKind::GreaterOrEqual
+                }
+                _ => TokenKind::GreaterThan,
+            },
+            b'<' => match self.peek() {
+                b'=' => {
+                    self.consume_char();
+                    TokenKind::LessOrEqual
+                }
+                _ => TokenKind::LessThan,
+            },
+            b'+' => TokenKind::Plus,
+            b'-' => TokenKind::Dash,
+            b'*' => TokenKind::Asterisk,
+            b'/' => TokenKind::Slash,
+            b',' => TokenKind::Comma,
+            b';' => TokenKind::Semicolon,
+            b'(' => TokenKind::LParen,
+            b')' => TokenKind::RParen,
+            b'{' => TokenKind::LSquirly,
+            b'}' => TokenKind::RSquirly,
+            b'[' => TokenKind::LBracket,
+            b']' => TokenKind::RBracket,
+            0 => TokenKind::EOF,
+            _ => TokenKind::Illegal,
+        };
+        let end_pos = self.cur_pos;
+        let span = TokenSpan::new(
+            start_pos,
+            end_pos,
+            String::from_utf8_lossy(&self.input[start_pos..end_pos]).to_string(),
+        );
+        if !consumed {
+            self.consume_char();
+        }
+        Some(Token::new(kind, span))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{env, fs};
-
     use super::*;
+    use anyhow::Result;
+    use std::{env, fs};
 
     fn get_path() -> String {
         let args: Vec<String> = env::args().collect();
-        args[2].to_owned()
+        args[2].to_string()
     }
-
     #[test]
-    fn lex_num() -> Result<(), Box<dyn std::error::Error>> {
-        let path = get_path();
-        let content = &fs::read_to_string(path)?;
-        let mut l = Lexer::new(content);
-        // let mut tokens: Vec<Token> = Vec::new();
-        // while let Some(t) = l.next() {
-        //     tokens.push(t);
-        // }
-        // println!("{:?}", tokens);
-        assert_eq!(
-            l.next().unwrap(),
-            Token::new(TokenKind::Number(12), TextSpan::new(0, 2, "12".to_string()))
-        );
-        assert_eq!(
-            l.next().unwrap(),
-            Token::new(TokenKind::Whitespace, TextSpan::new(2, 3, ' '.to_string()))
-        );
-        assert_eq!(
-            l.next().unwrap(),
-            Token::new(TokenKind::Plus, TextSpan::new(3, 4, "+".to_string()))
-        );
-        assert_eq!(
-            l.next().unwrap(),
-            Token::new(TokenKind::Whitespace, TextSpan::new(4, 5, '\n'.to_string()))
-        );
-        assert_eq!(
-            l.next().unwrap(),
-            Token::new(TokenKind::EOF, TextSpan::new(5, 5, '\0'.to_string()))
-        );
-        Ok(())
+    fn lex_kind() -> Result<()> {
+        let input = fs::read_to_string(get_path())?;
+        let mut lexer = Lexer::new(input);
+        let kinds: Vec<TokenKind> = vec![
+            TokenKind::Let,
+            TokenKind::Ident(String::from("five")),
+            TokenKind::Assign,
+            TokenKind::Integer(String::from("5")),
+            TokenKind::Semicolon,
+            TokenKind::Let,
+            TokenKind::Ident(String::from("ten")),
+            TokenKind::Assign,
+            TokenKind::Integer(String::from("10")),
+            TokenKind::Semicolon,
+            TokenKind::Let,
+            TokenKind::Ident(String::from("add")),
+            TokenKind::Assign,
+            TokenKind::Function,
+            TokenKind::LParen,
+            TokenKind::Ident(String::from("x")),
+            TokenKind::Comma,
+            TokenKind::Ident(String::from("y")),
+            TokenKind::RParen,
+            TokenKind::LSquirly,
+            TokenKind::Ident(String::from("x")),
+            TokenKind::Plus,
+            TokenKind::Ident(String::from("y")),
+            TokenKind::Semicolon,
+            TokenKind::RSquirly,
+            TokenKind::Semicolon,
+            TokenKind::Let,
+            TokenKind::Ident(String::from("result")),
+            TokenKind::Assign,
+            TokenKind::Ident(String::from("add")),
+            TokenKind::LParen,
+            TokenKind::Ident(String::from("five")),
+            TokenKind::Comma,
+            TokenKind::Ident(String::from("ten")),
+            TokenKind::RParen,
+            TokenKind::Semicolon,
+            TokenKind::Bang,
+            TokenKind::Dash,
+            TokenKind::Slash,
+            TokenKind::Asterisk,
+            TokenKind::Integer(String::from("5")),
+            TokenKind::Semicolon,
+            TokenKind::Integer(String::from("5")),
+            TokenKind::LessThan,
+            TokenKind::Integer(String::from("10")),
+            TokenKind::GreaterThan,
+            TokenKind::Integer(String::from("5")),
+            TokenKind::Semicolon,
+            TokenKind::If,
+            TokenKind::LParen,
+            TokenKind::Integer(String::from("5")),
+            TokenKind::LessThan,
+            TokenKind::Integer(String::from("10")),
+            TokenKind::RParen,
+            TokenKind::LSquirly,
+            TokenKind::Return,
+            TokenKind::True,
+            TokenKind::Semicolon,
+            TokenKind::RSquirly,
+            TokenKind::Else,
+            TokenKind::LSquirly,
+            TokenKind::Return,
+            TokenKind::False,
+            TokenKind::Semicolon,
+            TokenKind::RSquirly,
+            TokenKind::Integer(String::from("10")),
+            TokenKind::Equal,
+            TokenKind::Integer(String::from("10")),
+            TokenKind::Semicolon,
+            TokenKind::Integer(String::from("10")),
+            TokenKind::NotEqual,
+            TokenKind::Integer(String::from("9")),
+            TokenKind::Semicolon,
+            TokenKind::EOF,
+        ];
+        for kind in kinds {
+            let next = lexer.next().unwrap().kind;
+            println!("expected: {:?}, received: {:?}", kind, next);
+            assert_eq!(kind, next);
+        }
+
+        return Ok(());
     }
 }
