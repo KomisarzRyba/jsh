@@ -33,6 +33,7 @@ enum TokenKind {
     Return,
 }
 
+#[derive(Debug, PartialEq)]
 struct TokenSpan {
     start: usize,
     end: usize,
@@ -45,6 +46,7 @@ impl TokenSpan {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct Token {
     kind: TokenKind,
     span: TokenSpan,
@@ -184,15 +186,18 @@ impl Iterator for Lexer {
             0 => TokenKind::EOF,
             _ => TokenKind::Illegal,
         };
+
+        if !consumed {
+            self.consume_char();
+        }
+
         let end_pos = self.cur_pos;
         let span = TokenSpan::new(
             start_pos,
             end_pos,
             String::from_utf8_lossy(&self.input[start_pos..end_pos]).to_string(),
         );
-        if !consumed {
-            self.consume_char();
-        }
+
         Some(Token::new(kind, span))
     }
 }
@@ -207,6 +212,7 @@ mod tests {
         let args: Vec<String> = env::args().collect();
         args[2].to_string()
     }
+
     #[test]
     fn lex_kind() -> Result<()> {
         let input = fs::read_to_string(get_path())?;
@@ -289,10 +295,35 @@ mod tests {
         ];
         for kind in kinds {
             let next = lexer.next().unwrap().kind;
-            println!("expected: {:?}, received: {:?}", kind, next);
             assert_eq!(kind, next);
         }
 
-        return Ok(());
+        Ok(())
+    }
+
+    #[test]
+    fn lex_token() -> Result<()> {
+        let input = fs::read_to_string(get_path())?;
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<Token> = vec![
+            Token::new(TokenKind::Let, TokenSpan::new(0, 3, "let".into())),
+            Token::new(
+                TokenKind::Ident("five".into()),
+                TokenSpan::new(4, 8, "five".into()),
+            ),
+            Token::new(TokenKind::Assign, TokenSpan::new(9, 10, "=".into())),
+            Token::new(
+                TokenKind::Integer("5".into()),
+                TokenSpan::new(11, 12, "5".into()),
+            ),
+            Token::new(TokenKind::Semicolon, TokenSpan::new(12, 13, ";".into())),
+            Token::new(TokenKind::Let, TokenSpan::new(14, 17, "let".into())),
+        ];
+        for token in tokens {
+            let next = lexer.next().unwrap();
+            assert_eq!(token, next);
+        }
+
+        Ok(())
     }
 }
