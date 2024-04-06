@@ -1,5 +1,6 @@
 let five = 5;
 let ten = 10;
+let fraction = 110.598;
 let add = fn(x, y) {
     x + y;
 };
@@ -14,3 +15,4 @@ if (5 < 10) {
 
 10 == 10;
 10 != 9;
+"test";

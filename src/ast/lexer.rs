@@ -1,9 +1,10 @@
 #[derive(Debug, PartialEq)]
 enum TokenKind {
-    Ident(String),
-    Integer(String),
-    Illegal,
     EOF,
+    Ident(String),
+    Number(String),
+    StringLiteral(String),
+    Illegal,
     Equal,
     Assign,
     Bang,
@@ -78,13 +79,13 @@ impl Lexer {
     }
 
     fn consume_char(&mut self) {
+        self.cur_pos = self.read_pos;
         if self.read_pos >= self.input.len() {
             self.ch = 0;
         } else {
             self.ch = self.input[self.read_pos];
+            self.read_pos += 1;
         }
-        self.cur_pos = self.read_pos;
-        self.read_pos += 1;
     }
 
     fn peek(&self) -> u8 {
@@ -109,11 +110,32 @@ impl Lexer {
         String::from_utf8_lossy(&self.input[pos..self.cur_pos]).to_string()
     }
 
-    fn read_int(&mut self) -> String {
+    fn read_number(&mut self) -> String {
         let pos = self.cur_pos;
-        while self.ch.is_ascii_digit() {
+        loop {
+            if self.ch.is_ascii_digit() {
+                self.consume_char();
+                continue;
+            }
+            if self.ch == b'.' {
+                self.consume_char();
+                while self.ch.is_ascii_digit() {
+                    self.consume_char();
+                }
+                break;
+            }
+            break;
+        }
+        String::from_utf8_lossy(&self.input[pos..self.cur_pos]).to_string()
+    }
+
+    fn read_string_literal(&mut self) -> String {
+        let pos = self.cur_pos;
+        self.consume_char();
+        while self.ch != b'"' {
             self.consume_char();
         }
+        self.consume_char();
         String::from_utf8_lossy(&self.input[pos..self.cur_pos]).to_string()
     }
 }
@@ -121,6 +143,10 @@ impl Lexer {
 impl Iterator for Lexer {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_pos >= self.input.len() {
+            return None;
+        }
+
         self.skip_whitespace();
         let start_pos = self.cur_pos;
         let mut consumed = false;
@@ -141,7 +167,11 @@ impl Iterator for Lexer {
             }
             b'0'..=b'9' => {
                 consumed = true;
-                TokenKind::Integer(self.read_int())
+                TokenKind::Number(self.read_number())
+            }
+            b'"' => {
+                consumed = true;
+                TokenKind::StringLiteral(self.read_string_literal())
             }
             b'=' => match self.peek() {
                 b'=' => {
@@ -206,71 +236,71 @@ impl Iterator for Lexer {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use std::{env, fs};
-
-    fn get_path() -> String {
-        let args: Vec<String> = env::args().collect();
-        args[2].to_string()
-    }
+    use std::fs;
 
     #[test]
     fn lex_kind() -> Result<()> {
-        let input = fs::read_to_string(get_path())?;
+        let input = fs::read_to_string("./example.jsh")?;
         let mut lexer = Lexer::new(input);
         let kinds: Vec<TokenKind> = vec![
             TokenKind::Let,
-            TokenKind::Ident(String::from("five")),
+            TokenKind::Ident("five".to_string()),
             TokenKind::Assign,
-            TokenKind::Integer(String::from("5")),
+            TokenKind::Number("5".to_string()),
             TokenKind::Semicolon,
             TokenKind::Let,
-            TokenKind::Ident(String::from("ten")),
+            TokenKind::Ident("ten".to_string()),
             TokenKind::Assign,
-            TokenKind::Integer(String::from("10")),
+            TokenKind::Number("10".to_string()),
             TokenKind::Semicolon,
             TokenKind::Let,
-            TokenKind::Ident(String::from("add")),
+            TokenKind::Ident("fraction".to_string()),
+            TokenKind::Assign,
+            TokenKind::Number("110.598".to_string()),
+            TokenKind::Semicolon,
+            TokenKind::Let,
+            TokenKind::Ident("add".to_string()),
             TokenKind::Assign,
             TokenKind::Function,
             TokenKind::LParen,
-            TokenKind::Ident(String::from("x")),
+            TokenKind::Ident("x".to_string()),
             TokenKind::Comma,
-            TokenKind::Ident(String::from("y")),
+            TokenKind::Ident("y".to_string()),
             TokenKind::RParen,
             TokenKind::LSquirly,
-            TokenKind::Ident(String::from("x")),
+            TokenKind::Ident("x".to_string()),
             TokenKind::Plus,
-            TokenKind::Ident(String::from("y")),
+            TokenKind::Ident("y".to_string()),
             TokenKind::Semicolon,
             TokenKind::RSquirly,
             TokenKind::Semicolon,
             TokenKind::Let,
-            TokenKind::Ident(String::from("result")),
+            TokenKind::Ident("result".to_string()),
             TokenKind::Assign,
-            TokenKind::Ident(String::from("add")),
+            TokenKind::Ident("add".to_string()),
             TokenKind::LParen,
-            TokenKind::Ident(String::from("five")),
+            TokenKind::Ident("five".to_string()),
             TokenKind::Comma,
-            TokenKind::Ident(String::from("ten")),
+            TokenKind::Ident("ten".to_string()),
             TokenKind::RParen,
             TokenKind::Semicolon,
             TokenKind::Bang,
             TokenKind::Dash,
             TokenKind::Slash,
             TokenKind::Asterisk,
-            TokenKind::Integer(String::from("5")),
+            TokenKind::Number("5".to_string()),
             TokenKind::Semicolon,
-            TokenKind::Integer(String::from("5")),
+            TokenKind::Number("5".to_string()),
             TokenKind::LessThan,
-            TokenKind::Integer(String::from("10")),
+            TokenKind::Number("10".to_string()),
             TokenKind::GreaterThan,
-            TokenKind::Integer(String::from("5")),
+            TokenKind::Number("5".to_string()),
             TokenKind::Semicolon,
             TokenKind::If,
             TokenKind::LParen,
-            TokenKind::Integer(String::from("5")),
+            TokenKind::Number("5".to_string()),
             TokenKind::LessThan,
-            TokenKind::Integer(String::from("10")),
+            TokenKind::Number("10".to_string()),
             TokenKind::RParen,
             TokenKind::LSquirly,
             TokenKind::Return,
@@ -283,13 +313,15 @@ mod tests {
             TokenKind::False,
             TokenKind::Semicolon,
             TokenKind::RSquirly,
-            TokenKind::Integer(String::from("10")),
+            TokenKind::Number("10".to_string()),
             TokenKind::Equal,
-            TokenKind::Integer(String::from("10")),
+            TokenKind::Number("10".to_string()),
             TokenKind::Semicolon,
-            TokenKind::Integer(String::from("10")),
+            TokenKind::Number("10".to_string()),
             TokenKind::NotEqual,
-            TokenKind::Integer(String::from("9")),
+            TokenKind::Number("9".to_string()),
+            TokenKind::Semicolon,
+            TokenKind::StringLiteral("\"test\"".to_string()),
             TokenKind::Semicolon,
             TokenKind::EOF,
         ];
@@ -303,7 +335,7 @@ mod tests {
 
     #[test]
     fn lex_token() -> Result<()> {
-        let input = fs::read_to_string(get_path())?;
+        let input = fs::read_to_string("./example.jsh")?;
         let mut lexer = Lexer::new(input);
         let tokens: Vec<Token> = vec![
             Token::new(TokenKind::Let, TokenSpan::new(0, 3, "let".into())),
@@ -313,7 +345,7 @@ mod tests {
             ),
             Token::new(TokenKind::Assign, TokenSpan::new(9, 10, "=".into())),
             Token::new(
-                TokenKind::Integer("5".into()),
+                TokenKind::Number("5".into()),
                 TokenSpan::new(11, 12, "5".into()),
             ),
             Token::new(TokenKind::Semicolon, TokenSpan::new(12, 13, ";".into())),
