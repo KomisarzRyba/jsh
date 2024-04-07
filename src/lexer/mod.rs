@@ -1,63 +1,6 @@
-#[derive(Debug, PartialEq)]
-enum TokenKind {
-    EOF,
-    Ident(String),
-    Number(String),
-    StringLiteral(String),
-    Illegal,
-    Equal,
-    Assign,
-    Bang,
-    NotEqual,
-    GreaterThan,
-    GreaterOrEqual,
-    LessThan,
-    LessOrEqual,
-    Plus,
-    Dash,
-    Asterisk,
-    Slash,
-    Comma,
-    Semicolon,
-    LParen,
-    RParen,
-    LSquirly,
-    RSquirly,
-    LBracket,
-    RBracket,
-    Function,
-    Let,
-    If,
-    Else,
-    True,
-    False,
-    Return,
-}
+pub mod token;
 
-#[derive(Debug, PartialEq)]
-struct TokenSpan {
-    start: usize,
-    end: usize,
-    lexeme: String,
-}
-
-impl TokenSpan {
-    fn new(start: usize, end: usize, lexeme: String) -> Self {
-        Self { start, end, lexeme }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Token {
-    kind: TokenKind,
-    span: TokenSpan,
-}
-
-impl Token {
-    fn new(kind: TokenKind, span: TokenSpan) -> Self {
-        Self { kind, span }
-    }
-}
+use self::token::{Token, TokenKind, TokenSpan};
 
 pub struct Lexer {
     cur_pos: usize,
@@ -335,7 +278,7 @@ mod tests {
 
     #[test]
     fn lex_token() -> Result<()> {
-        let input = fs::read_to_string("./example.jsh")?;
+        let input = fs::read_to_string("./examples/example.jsh")?;
         let mut lexer = Lexer::new(input);
         let tokens: Vec<Token> = vec![
             Token::new(TokenKind::Let, TokenSpan::new(0, 3, "let".into())),

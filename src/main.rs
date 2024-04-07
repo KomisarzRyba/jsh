@@ -1,6 +1,8 @@
 use std::{env, error::Error, fs};
 
-pub mod ast;
+mod ast;
+mod lexer;
+mod parser;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let path = env::args().last().unwrap();
